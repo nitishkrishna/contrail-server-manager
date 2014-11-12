@@ -166,3 +166,4 @@ class ServerMgrIPMIMonitoring(ServerMgrMonBasePlugin):
             self.base_obj.log("info", "Monitoring thread is sleeping for " + str(self.freq) + " seconds")
             time.sleep(self.freq)
             self.base_obj.log("info", "Monitoring thread woke up")
+
