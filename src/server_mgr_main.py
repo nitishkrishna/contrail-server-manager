@@ -255,6 +255,9 @@ class VncServerManager():
         self._dev_env_monitoring_obj.set_serverdb(self._serverDb)
         self._dev_env_monitoring_obj.set_ipmi_defaults(self._args.ipmi_username, self._args.ipmi_password)
         self._dev_env_monitoring_obj.daemon = True
+        if self._monitoring_args:
+            if self._monitoring_args.collectors:
+                self._monitoring_base_plugin_obj.sandesh_init(self._monitoring_args.collectors)
         self._dev_env_monitoring_obj.start()
 
         self._base_url = "http://%s:%s" % (self._args.listen_ip_addr,
@@ -1241,6 +1244,10 @@ class VncServerManager():
     def put_server(self):
         self._smgr_log.log(self._smgr_log.DEBUG, "add_server")
         entity = bottle.request.json
+        server_hostname_list = list()
+        server_ipmi_list = list()
+        server_ipmi_pw_list = list()
+        server_ipmi_un_list = list()
         if (not entity):
             msg = 'Server MAC or server_id not specified'
             resp_msg = self.form_operartion_data(msg, ERR_OPR_ERROR, None)
@@ -1264,6 +1271,10 @@ class VncServerManager():
                     self.validate_smgr_request("SERVER", "PUT", bottle.request,
                                                                         server)
                     server['status'] = "server_added"
+                    server_ipmi_list.append(str(server['ipmi_address']))
+                    server_ipmi_un_list.append(str(server['ipmi_username']))
+                    server_ipmi_pw_list.append(str(server['ipmi_password']))
+                    server_hostname_list.append(str(server['id']))
                     self._serverDb.add_server(server)
         except ServerMgrException as e:
             self._smgr_trans_log.log(bottle.request,
@@ -1279,7 +1290,10 @@ class VncServerManager():
             abort(404, resp_msg)
         self._smgr_trans_log.log(bottle.request,
             self._smgr_trans_log.PUT_SMGR_CFG_SERVER)
-        msg = "Server add/Modify Success" 
+        msg = "Server add/Modify Success"
+        # Put trigger to base_object here - needs collector
+        self._monitoring_base_plugin_obj.handle_inventory_trigger("put_server", server_hostname_list, server_ipmi_list,
+                                                                  server_ipmi_un_list, server_ipmi_pw_list)
         resp_msg = self.form_operartion_data(msg, 0, entity)
         return resp_msg
 
