@@ -144,6 +144,7 @@ class ServerMgrMonBasePlugin(Thread):
             node_type = Module2NodeType[module]
             node_type_name = NodeTypeNames[node_type]
             instance_id = INSTANCE_ID_DEFAULT
+            collectors_ip_list = eval(collectors_ip_list)
             if collectors_ip_list:
                 self.log("info", "Collector IPs from config: " + str(collectors_ip_list))
                 sandesh_global.init_generator(
@@ -201,16 +202,16 @@ class ServerMgrMonBasePlugin(Thread):
                     if sensor == "FRU Device Description":
                         fru_info_obj = fru_info()
                         fru_info_obj.fru_description = reading_value
-                        fru_info_obj.chassis_type = "N/A"
-                        fru_info_obj.chassis_serial_number = "N/A"
-                        fru_info_obj.board_mfg_date = "N/A"
-                        fru_info_obj.board_manufacturer = "N/A"
-                        fru_info_obj.board_product_name = "N/A"
-                        fru_info_obj.board_serial_number = "N/A"
-                        fru_info_obj.board_part_number = "N/A"
-                        fru_info_obj.product_manfacturer = "N/A"
-                        fru_info_obj.product_name = "N/A"
-                        fru_info_obj.product_part_number = "N/A"
+                        fru_info_obj.chassis_type = "Not Available"
+                        fru_info_obj.chassis_serial_number = "Not Available"
+                        fru_info_obj.board_mfg_date = "Not Available"
+                        fru_info_obj.board_manufacturer = "Not Available"
+                        fru_info_obj.board_product_name = "Not Available"
+                        fru_info_obj.board_serial_number = "Not Available"
+                        fru_info_obj.board_part_number = "Not Available"
+                        fru_info_obj.product_manfacturer = "Not Available"
+                        fru_info_obj.product_name = "Not Available"
+                        fru_info_obj.product_part_number = "Not Available"
                     elif sensor == "Chassis Type":
                         fru_info_obj.chassis_type = reading_value
                     elif sensor == "Chassis Serial":
