@@ -139,7 +139,7 @@ class ServerMgrMonBasePlugin(Thread):
         # Inventory node module initialization part
         try:
             self.log("info", "Initializing sandesh")
-            module = Module.INVENTORY_AGENT
+            module = Module.IPMI_STATS_MGR
             module_name = ModuleNames[module]
             node_type = Module2NodeType[module]
             node_type_name = NodeTypeNames[node_type]
@@ -154,8 +154,8 @@ class ServerMgrMonBasePlugin(Thread):
                     instance_id,
                     collectors_ip_list,
                     module_name,
-                    HttpPortInventorymgr,
-                    ['inventory_daemon.server_inventory'])
+                    HttpPortIpmiStatsmgr,
+                    ['inventory_daemon.server_inventory', 'contrail_sm_monitoring.ipmi'])
             else:
                 pass
                 #raise ServerMgrException("Error during Sandesh Init: No collector ips given")

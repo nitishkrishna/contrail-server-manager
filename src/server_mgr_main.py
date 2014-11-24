@@ -2956,7 +2956,7 @@ class VncServerManager():
                     if self._monitoring_args.collectors:
                         self._dev_env_monitoring_obj = monitoring_class(1, self._monitoring_args.monitoring_frequency,
                                                                         self._monitoring_args.collectors)
-                        self._dev_env_monitoring_obj.sandesh_init(self._monitoring_args.collectors)
+                        #self._dev_env_monitoring_obj.sandesh_init(self._monitoring_args.collectors)
                         self._config_set = True
                 else:
                     self._smgr_log.log(self._smgr_log.ERROR, "Analytics IP and Monitoring API misconfigured, monitoring aborted")
