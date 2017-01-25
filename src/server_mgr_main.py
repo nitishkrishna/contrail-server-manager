@@ -3193,7 +3193,6 @@ class VncServerManager():
             if (image['type'] in self._contrail_container_list):
                 image_params   = image.get("parameters", {})
                 for container in (eval(image_params)).get("containers", None):
-                    print "removing %s" % container["docker_image_id"]
                     if "docker_image_id" in container.keys():
                         self._docker_cli.remove_containers(container["docker_image_id"])
                 self._serverDb.delete_image(image_dict)
