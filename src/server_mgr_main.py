@@ -3193,8 +3193,8 @@ class VncServerManager():
             if (image['type'] in self._contrail_container_list):
                 image_params   = image.get("parameters", {})
                 for container in (eval(image_params)).get("containers", None):
-                    print "removing %s" % container["docker_image_id"]
                     if "docker_image_id" in container.keys():
+                        print "removing %s" % container["docker_image_id"]
                         self._docker_cli.remove_containers(container["docker_image_id"])
                 self._serverDb.delete_image(image_dict)
                 msg = "Image Deleted"
@@ -4106,7 +4106,7 @@ class VncServerManager():
                 server_pkg['package_type'] = package_type
             server_packages.append(server_pkg)
         return server_packages
-    # end get_server_packages
+    # end get_container_packages
 
 
     def get_server_packages(self, servers, package_image_id):
@@ -4224,7 +4224,6 @@ class VncServerManager():
 
     def get_server_control_hiera_filename(self, server_hostname, cluster=None):
         hiera_filename = ''
-        #pdb.set_trace()
         servers = self._serverDb.get_server({'host_name': server_hostname}, detail=True)
         if not servers:
             return hiera_filename
@@ -4542,6 +4541,7 @@ class VncServerManager():
         return role_sequence
 
     def prepare_provision_role_sequence(self, cluster, role_servers, puppet_manifest_version):
+        # Make sure this is calculated for compute image in mixed provisions
         provision_role_sequence = {}
         if not cluster or not role_servers:
             return provision_role_sequence
@@ -4744,7 +4744,14 @@ class VncServerManager():
         contrail_params = {}
         openstack_params = {}
         # contrail_repo_name
-        contrail_params['contrail_repo_name'] = [package.get('id', '')]
+        if package.get('category', None) == "container":
+            if package.get('compute_image_id', None):
+                contrail_params['contrail_repo_name'] = [package.get('compute_image_id', '')]
+            else:
+                msg = "Please provide compute_image_id to do puppet provision"
+                self.log_and_raise_exception(msg)
+        else:
+            contrail_params['contrail_repo_name'] = [package.get('id', '')]
         # contrail_repo_type (not used by 3.0 code, maintained for pre-3.0)
         contrail_params['contrail_repo_type'] = [package.get('type', '')]
         roles = eval(server.get("roles", "[]"))
@@ -4775,6 +4782,11 @@ class VncServerManager():
             # special case - convert role name for collector to analytics
             if (role == "collector"):
                 role = "analytics"
+            # Expanding special cases to allow mixed ansible/puppet provisioning
+            if (role == "controller"):
+                role = "config"
+            if (role == "analyticsdb"):
+                role = "database"
             if role != "openstack":
                 contrail_params[role] = {}
                 contrail_params[role][role + "_ip_list"] = role_ctl_ip
@@ -4990,8 +5002,16 @@ class VncServerManager():
             return
         contrail_params = {}
         package_params = package.get("parameters", {})
-        contrail_params['contrail_version'] = package_params.get("version", "")
-        contrail_params['package_sku'] = package_params.get("sku", "")
+        compute_image_id = package.get('compute_image_id',None)
+        if compute_image_id:
+            compute_package = self._serverDb.get_image({"id":
+                    str(compute_image_id)}, detail=True)[0]
+            compute_package_params = eval(compute_package.get('parameters',{}))
+            contrail_params['contrail_version'] = compute_package_params.get("version", "")
+            contrail_params['package_sku'] = compute_package_params.get("sku", "")
+        else:
+            contrail_params['contrail_version'] = package_params.get("version", "")
+            contrail_params['package_sku'] = package_params.get("sku", "")
         contrail_params = ServerMgrUtil.convert_unicode(contrail_params)
         package['calc_params'] = {
             "contrail": contrail_params
@@ -5022,12 +5042,23 @@ class VncServerManager():
         provision_status['server'] = []
         cluster_id = provisioning_data['cluster_id']
         server_packages = provisioning_data['server_packages']
+        compute_image_id = provisioning_data.get('compute_image_id',None)
         #Validate the vip configurations for the cluster
         self._smgr_validations.validate_vips(cluster_id, self._serverDb)
+        if compute_image_id:
+            compute_package = self._serverDb.get_image({"id":
+                    str(compute_image_id)}, detail=True)[0]
+            package_to_use = {}
+            package_to_use['puppet_manifest_version'] = \
+                    eval(compute_package['parameters']).get('puppet_manifest_version','')
+            package_to_use['sequence_provisioning_available'] = \
+                    eval(compute_package['parameters']).get('sequence_provisioning_available', None)
+        else:
+            package_to_use = server_packages[0]
         puppet_manifest_version = \
-            server_packages[0].get('puppet_manifest_version', '')
+            package_to_use.get('puppet_manifest_version', '')
         sequence_provisioning_available = \
-            server_packages[0].get('sequence_provisioning_available', False)
+            package_to_use.get('sequence_provisioning_available', False)
         role_servers = self.get_role_servers(cluster_id, server_packages)
         cluster = self._serverDb.get_cluster(
                                   {"id" : cluster_id},
@@ -5049,10 +5080,9 @@ class VncServerManager():
         for server_pkg in server_packages:
             server = server_pkg['server']
             package_image_id = server_pkg['package_image_id']
-            if 'compute_image_id' in provisioning_data.keys()
-                package_image_id = provisioning_data['compute_image_id']
             package_image_id, package = self.get_package_image(
                                                package_image_id)
+            package['compute_image_id'] = compute_image_id
             package_type = server_pkg['package_type']
             if "parameters" in package:
                 package["parameters"] = eval(package["parameters"])
@@ -5659,6 +5689,10 @@ class VncServerManager():
         params["ansible_host"] = server['ip_address']
         params["ansible_user"] = "root"
         params["ansible_password"] = server['password']
+        if not (len(set(eval(server['roles'])).intersection(set(_valid_roles)))):
+            msg = "No ansible roles for this server, skipping to puppet provision"
+            self._smgr_log.log(self._smgr_log.ERROR, msg)
+            return False
         for x in eval(server['roles']):
             srvr_provision_params = server['parameters']['provision']
             container_params = srvr_provision_params['containers']
@@ -5708,15 +5742,22 @@ class VncServerManager():
     def _do_provision_server(
         self, provision_parameters, server,
         cluster, cluster_servers, package, serverDb):
-        version = 0
-        if package['category'] != 'container':
-            version = int(package['parameters']['version'].split('.')[0])
-
-        if package['category'] == 'container' or \
-                ('compute' in eval(server['roles']) and version >= 4):
+        
+        if package['category'] == 'container':
             self._do_ansible_provision(provision_parameters, server, cluster,
                                   cluster_servers, package, serverDb)
-
+            if ('compute' in server['roles'] or 'openstack' in server['roles']) and package['compute_image_id']:
+                compute_images = self._serverDb.get_image({"id":
+                    str(package['compute_image_id'])}, detail=True)
+                if compute_images:
+                    compute_package = compute_images[0]
+                    compute_package_image_id, compute_package = self.get_package_image(
+                                               str(package['compute_image_id']))
+                    if "parameters" in compute_package:
+                        compute_package["parameters"] = eval(compute_package["parameters"])
+                        compute_package["calc_params"] = package.get("calc_params",{})
+                    self._do_provision_server(provision_parameters, server,
+                            cluster, cluster_servers, compute_package, serverDb)
         else:
             #Start the puppet agent in the target servers
             gevent.spawn(self._monitoring_base_plugin_obj.gevent_puppet_agent_action, server, serverDb, self._args, "start")
