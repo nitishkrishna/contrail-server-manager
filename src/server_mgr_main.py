@@ -5005,7 +5005,12 @@ class VncServerManager():
         compute_image_id = package.get('compute_image_id',None)
         if compute_image_id:
             compute_package = self._serverDb.get_image({"id":
-                    str(compute_image_id)}, detail=True)[0]
+                    str(compute_image_id)}, detail=True)
+            if len(compute_package):
+                compute_package = compute_package[0]
+            else:
+                msg = "Compute_image_id %s provided doesn't match a package added to SM" % (compute_image_id)
+                self.log_and_raise_exception(msg)
             compute_package_params = eval(compute_package.get('parameters',{}))
             contrail_params['contrail_version'] = compute_package_params.get("version", "")
             contrail_params['package_sku'] = compute_package_params.get("sku", "")
@@ -5047,7 +5052,12 @@ class VncServerManager():
         self._smgr_validations.validate_vips(cluster_id, self._serverDb)
         if compute_image_id:
             compute_package = self._serverDb.get_image({"id":
-                    str(compute_image_id)}, detail=True)[0]
+                    str(compute_image_id)}, detail=True)
+            if len(compute_package):
+                compute_package = compute_package[0]
+            else:
+                msg = "Compute_image_id %s provided doesn't match a package added to SM" % (compute_image_id)
+                self.log_and_raise_exception(msg)
             package_to_use = {}
             package_to_use['puppet_manifest_version'] = \
                     eval(compute_package['parameters']).get('puppet_manifest_version','')
